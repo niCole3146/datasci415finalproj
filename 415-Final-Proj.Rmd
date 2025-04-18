@@ -5,31 +5,504 @@ date: "2025-03-27"
 output: html_document
 ---
 
+```{r}
+data <- read.csv("DATA.csv")
+library(ISLR2)
+library(MASS)
+library(rpart)
+library(caret)
+library(tidyverse)
+library(car)
+library(randomForest)
+
+# Recode 2 → 0 for ALQ151 and SMQ020
+data$ALQ151 <- ifelse(data$ALQ151 == 2, 0, data$ALQ151)
+data$SMQ020 <- ifelse(data$SMQ020 == 2, 0, data$SMQ020)
+data$INDFMMPC <- data$INDFMMPC - 1
+data$depressed <- as.factor(data$depressed)
+```
+
+#Q1
+
+**Full Logistic Regression**
+```{r}
+full_model1 <- glm(depressed ~ INDFMMPC + INDFMPIR + DMDEDUC2,
+                  data = data,
+                  family = "binomial")
+
+summary(full_model1)
+```
+
+**Reduced Model with only variables that are significant above**
+```{r}
+step_model1 <- step(full_model1, direction = "backward")
+
+# View the final selected model
+summary(step_model1)
+```
+
+
+#Q2
+
+**Full Logistic Regression**
+```{r}
+full_model2 <- glm(depressed ~ ALQ121 + ALQ151 + DBQ700 + DBQ197 + DBD895 + DBD905 + DBD910 + SMQ020,
+                  data = data,
+                  family = "binomial")
+
+summary(full_model2)
+```
+
+**Reduced Model with only variables that are significant above
+```{r}
+step_model2 <- step(full_model2, direction = "backward")
+
+# View the final selected model
+summary(step_model2)
+```
+
+
+#Q3: Comine all 6 variables
+```{r}
+full_model3 <- glm(depressed ~ INDFMMPC + INDFMPIR + DMDEDUC2 + ALQ151 + DBQ700 + DBD895 + DBD910 + SMQ020,
+                  data = data,
+                  family = "binomial")
+
+summary(full_model3)
+```
+**Multicollinearity**
+```{r}
+cor(data[,c("INDFMMPC", "INDFMPIR", "DMDEDUC2", "ALQ151", "DBQ700", "DBD895", "DBD910", "SMQ020")])
+vif(full_model3)
+```
+
+**Reduced Model**
+```{r}
+step_model3 <- step(full_model3, direction = "backward")
+
+# View the final selected model
+summary(step_model3)
+```
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# Logistic Regression
 
-test test 
+## Combined Model
 ```{r}
+logregcombined <- glm(depressed ~ INDFMMPC + INDFMPIR + ALQ151 + DBQ700 + DBD910 + SMQ020, data = data, family = binomial)
+
+summary(logregcombined)
+```
+
+### K-fold (5)
+```{r}
+set.seed(123)
+folds <- createFolds(data$depressed, k = 5, list = TRUE)
+
+misclass_errors <- c()
+
+for (i in 1:5) {
+  test_indices <- folds[[i]]
+  train_data <- data[-test_indices, ]
+  test_data <- data[test_indices, ]
+  probs <- predict(logregcombined, newdata = test_data, type = "response")
+  preds <- ifelse(probs > 0.5, "1", "0")
+  actual <- as.character(test_data$depressed)
+  error_rate <- mean(preds != actual)
+  misclass_errors <- c(misclass_errors, error_rate)
+}
+
+kfold5comb_error <- mean(misclass_errors)
+print(kfold5comb_error)
 
 ```
 
 
+### K-fold (10)
+
+```{r}
+set.seed(123)
+folds <- createFolds(data$depressed, k = 10, list = TRUE)
+
+misclass_errors <- c()
+
+for (i in 1:10) {
+  test_indices <- folds[[i]]
+  train_data <- data[-test_indices, ]
+  test_data <- data[test_indices, ]
+  probs <- predict(logregcombined, newdata = test_data, type = "response")
+  preds <- ifelse(probs > 0.5, "1", "0")
+  actual <- as.character(test_data$depressed)
+  error_rate <- mean(preds != actual)
+  misclass_errors <- c(misclass_errors, error_rate)
+}
+
+kfold10comb_error <- mean(misclass_errors)
+print(kfold10comb_error)
+
+```
+
+### Train-Test Error
+
+```{r}
+sample_size <- floor(0.7 * nrow(data))
+train_indices <- sample(seq_len(nrow(data)), size = sample_size)
+train_data <- data[train_indices, ]
+test_data  <- data[-train_indices, ]
+probs <- predict(logregcombined, newdata = test_data, type = "response")
+preds <- ifelse(probs > 0.5, "1", "0")
+actual <- as.character(test_data$depressed)
+splitcomb_error <- mean(preds != actual)
+print(splitcomb_error)
+```
 
 
+## Question 1
+```{r}
+logreg1 <- glm(depressed ~ INDFMMPC + INDFMPIR + DMDEDUC2, data = data, family = binomial)
+summary(logreg1)
+```
+
+### K-fold (5)
+```{r}
+set.seed(123)
+folds <- createFolds(data$depressed, k = 5, list = TRUE)
+misclass_errors <- c()
+
+for (i in 1:5) {
+  test_indices <- folds[[i]]
+  train_data <- data[-test_indices, ]
+  test_data <- data[test_indices, ]
+  probs <- predict(logreg1, newdata = test_data, type = "response")
+  preds <- ifelse(probs > 0.5, "1", "0")
+  actual <- as.character(test_data$depressed)
+  error_rate <- mean(preds != actual)
+  misclass_errors <- c(misclass_errors, error_rate)
+}
+kfold5q1_error <- mean(misclass_errors)
+print(kfold5q1_error)
+
+```
 
 
+### K-fold (10)
+
+```{r}
+set.seed(123)
+folds <- createFolds(data$depressed, k = 10, list = TRUE)
+misclass_errors <- c()
+
+for (i in 1:10) {
+  test_indices <- folds[[i]]
+  train_data <- data[-test_indices, ]
+  test_data <- data[test_indices, ]
+  probs <- predict(logreg1, newdata = test_data, type = "response")
+  preds <- ifelse(probs > 0.5, "1", "0")
+  actual <- as.character(test_data$depressed)
+  error_rate <- mean(preds != actual)
+  misclass_errors <- c(misclass_errors, error_rate)
+}
+
+kfold10q1_error <- mean(misclass_errors)
+print(kfold10q1_error)
+
+```
+
+### Train-Test Error
+```{r}
+sample_size <- floor(0.7 * nrow(data))
+train_indices <- sample(seq_len(nrow(data)), size = sample_size)
+train_data <- data[train_indices, ]
+test_data  <- data[-train_indices, ]
+probs <- predict(logreg1, newdata = test_data, type = "response")
+preds <- ifelse(probs > 0.5, "1", "0")
+actual <- as.character(test_data$depressed)
+
+splitq1_error <- mean(preds != actual)
+print(splitq1_error)
+```
+
+## Question 2
+```{r}
+logreg2 <- glm(depressed ~ ALQ121 + ALQ151 + DBQ700 + DBQ197 + DBD895 + DBD905 + DBD910 + SMQ020, data = data, family = binomial)
+summary(logreg2)
+```
+
+### K-fold (5)
+```{r}
+set.seed(123)
+folds <- createFolds(data$depressed, k = 5, list = TRUE)
+misclass_errors <- c()
+
+for (i in 1:5) {
+  test_indices <- folds[[i]]
+  train_data <- data[-test_indices, ]
+  test_data <- data[test_indices, ]
+  probs <- predict(logreg2, newdata = test_data, type = "response")
+  preds <- ifelse(probs > 0.5, "1", "0")
+  actual <- as.character(test_data$depressed)
+  error_rate <- mean(preds != actual)
+  misclass_errors <- c(misclass_errors, error_rate)
+}
+
+kfold5q2_error <- mean(misclass_errors)
+print(kfold5q2_error)
+
+```
 
 
+### K-fold (10)
+
+```{r}
+set.seed(123)
+folds <- createFolds(data$depressed, k = 10, list = TRUE)
+misclass_errors <- c()
+
+for (i in 1:10) {
+  test_indices <- folds[[i]]
+  train_data <- data[-test_indices, ]
+  test_data <- data[test_indices, ]
+  probs <- predict(logreg2, newdata = test_data, type = "response")
+  preds <- ifelse(probs > 0.5, "1", "0")
+  actual <- as.character(test_data$depressed)
+  error_rate <- mean(preds != actual)
+  misclass_errors <- c(misclass_errors, error_rate)
+}
+
+kfold10q2_error <- mean(misclass_errors)
+print(kfold10q2_error)
+
+```
+
+### Train-Test Error
+```{r}
+sample_size <- floor(0.7 * nrow(data))
+train_indices <- sample(seq_len(nrow(data)), size = sample_size)
+
+train_data <- data[train_indices, ]
+test_data  <- data[-train_indices, ]
+
+probs <- predict(logreg2, newdata = test_data, type = "response")
+preds <- ifelse(probs > 0.5, "1", "0")
+actual <- as.character(test_data$depressed)
+
+splitq2_error <- mean(preds != actual)
+print(splitq2_error)
+```
+
+```{r}
+error_tibble <- tibble(
+  model = c("combined", "q1", "q2"),
+  kfold5error = c(kfold5comb_error, kfold5q1_error, kfold5q2_error),
+  kfold10error = c(kfold10comb_error, kfold10q1_error, kfold10q2_error),
+  spliterror = c(splitcomb_error, splitq1_error, splitq2_error)
+)
+error_tibble
+```
 
 
+**Question 1:** How do income (INDFMMPC), poverty (INDFMPIR), and education levels (DMDEDUC2) influence depression?
+
+```{r}
+# Income (INDFMMPC), poverty (INDFMPIR), and education levels (DMDEDUC2) influence depression?
+data_model <- data[, c("INDFMMPC", "INDFMPIR", "DMDEDUC2", "depressed")]
+
+# Split into training and test sets
+set.seed(123)
+train_index <- createDataPartition(data_model$depressed, p = 0.7, list = FALSE)
+train_data <- data_model[train_index, ]
+test_data <- data_model[-train_index, ]
+
+min_class_size <- min(table(train_data$depressed))
+
+set.seed(123)
+rf_model <- randomForest(
+  depressed ~ ., 
+  data = train_data,
+  mtry = 2,                   
+  ntree = 500,
+  importance = TRUE,
+  sampsize = c(min_class_size, min_class_size)  # balance class 0 and 1
+)
+
+# Predict on test set
+rf_pred <- predict(rf_model, newdata = test_data)
+
+# Evaluate model
+conf_matrix <- confusionMatrix(rf_pred, test_data$depressed)
+print(conf_matrix)
+```
+- Based on the confusion matrix: 
++ True Negatives (TN) = 1081: correctly predicted not depressed
++ False Positives (FP) = 553: predicted depressed, actually not
++ False Negatives (FN) = 79: predicted not depressed, actually depressed
++ True Positives (TP) = 81: correctly predicted depressed
+
+```{r}
+# View and plot variable importance
+importance_table <- importance(rf_model)
+print(importance_table)
+```
+
+```{r}
+varImpPlot(rf_model, main = "Variable Importance: Balanced Random Forest")
+```
+
+```{r}
+# Predict probability of being depressed for each individual in the test set
+test_data$pred_prob <- predict(rf_model, newdata = test_data, type = "prob")[, "1"]
+
+# By Income Group (INDFMMPC)
+income_summary <- test_data %>%
+  group_by(INDFMMPC) %>%
+  summarise(
+    avg_pred_prob = mean(pred_prob),
+    count = n()
+  )
+
+print(income_summary)
+```
+- Interpretation: Individuals in income group 1 (lowest income) had a 61% average predicted probability of depression — the highest risk group. Those in income group 2 had a 50% chance, while those in income group 3 had the lowest risk at around 21%. 
+- Suggestion: The tree-based model learns that individuals in lower income groups are more likely to be depressed. As income group increases, from group 1 to 3, the model’s predicted probability of depression decreases, indicating a negative relationship between income and depression risk.
+
+```{r}
+# By Binned Poverty Ratio (INDFMPIR)
+test_data$poverty_level <- cut(test_data$INDFMPIR, breaks = c(-Inf, 1, 2, 3, Inf),
+                               labels = c("Very Low", "Low", "Medium", "High"))
+
+poverty_summary <- test_data %>%
+  group_by(poverty_level) %>%
+  summarise(
+    avg_pred_prob = mean(pred_prob),
+    count = n()
+  )
+
+print(poverty_summary)
+```
+- Interpretation: People with a very low poverty ratio (i.e., below 1.0, meaning they're below the poverty line) had a 63.6% average probability of being classified as depressed. This probability decreases as poverty ratio increases. To be more specific, "High" poverty ratio have lower probability of being depressed, 14.5%. 
+- Suggestion: The model learns that poverty is a significant risk factor for depression. As individuals' poverty ratio increases (i.e., they are further above the poverty line), the predicted likelihood of depression decreases. 
+
+```{r}
+# By Education Level (DMDEDUC2)
+education_summary <- test_data %>%
+  group_by(DMDEDUC2) %>%
+  summarise(
+    avg_pred_prob = mean(pred_prob),
+    count = n()
+  )
+
+print(education_summary)
+```
+- Interpretation: Individuals with highest education level (5) have the lowest predicted probability of depression at 15.6%.
+In contrast, those with lower to middle education (levels 2–3) have predicted probabilities around 50% or higher. The highest depression risk was among those with education level 2 (~53.6%).
+- Suggestion: The model finds that as education level increases, predicted risk of depression decreases. This also indicates that getting access to higher education may be equivalent to better access to resources, jobs, or mental health supports.
 
 
+**Question 2:** How do alcohol use (ALQ), diet, behavior, nutrition (DBQ), and smoke (SMQ) influence depression?
+```{r}
+# Set seed for reproducibility
+set.seed(123)
+
+# Ensure target is a factor and name levels
+data$depressed <- factor(data$depressed, levels = c(0, 1), labels = c("NotDepressed", "Depressed"))
+
+# Subset relevant predictors (e.g., ALQ, DBQ, SMQ)
+data_model <- data[, c("ALQ111", "ALQ121", "ALQ151",
+                   "DBQ700", "DBQ197", "DBD895", "DBD905", "DBD910",
+                   "SMQ020", "depressed")]
+
+# Train/test split
+train_index <- createDataPartition(data_model$depressed, p = 0.7, list = FALSE)
+train_data <- data_model[train_index, ]
+test_data <- data_model[-train_index, ]
+
+# Define training control with oversampling and 10-fold CV
+train_control <- trainControl(
+  method = "cv",
+  number = 10,
+  sampling = "up",    
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary,
+  savePredictions = "final"
+)
+
+tune_grid <- expand.grid(mtry = c(2, 3, 4, 5))
+
+# Train the model
+rf_model <- train(
+  depressed ~ .,
+  data = train_data,
+  method = "rf",
+  metric = "ROC",            
+  trControl = train_control,
+  tuneGrid = tune_grid,
+  ntree = 500
+)
+
+# Print model performance and best mtry
+print(rf_model)
+plot(rf_model)
+```
+```{r}
+pred_prob <- predict(rf_model, newdata = test_data, type = "prob")
+
+# Set a custom threshold (0.3 for Depressed)
+custom_threshold <- 0.3
+pred_class_custom <- ifelse(pred_prob[["Depressed"]] >= custom_threshold, "Depressed", "NotDepressed")
+pred_class_custom <- factor(pred_class_custom, levels = c("NotDepressed", "Depressed"))  
+
+# Evaluate with confusion matrix
+conf_matrix_custom <- confusionMatrix(pred_class_custom, test_data$depressed, positive = "Depressed")
+print(conf_matrix_custom)
+```
+
+```{r}
+test_data$pred_prob <- predict(rf_model, newdata = test_data, type = "prob")[, "Depressed"]
+
+# Alcohol Frequency: ALQ121 
+test_data$ALQ121_group <- factor(test_data$ALQ121, 
+                                 levels = c(0, 1, 2, 3, 4),
+                                 labels = c("Never", "Monthly", "Weekly", "Daily", "Unknown"))
+
+alcohol121_summary <- test_data %>%
+  group_by(ALQ121_group) %>%
+  summarise(avg_pred_prob = mean(pred_prob, na.rm = TRUE), count = n())
+
+print(alcohol121_summary)
+```
+
+```{r}
+# Alcohol Quantity: ALQ151 
+test_data$ALQ151_group <- cut(test_data$ALQ151,
+                              breaks = c(-Inf, 1, 3, 10, Inf),
+                              labels = c("Light", "Moderate", "Heavy", "Very Heavy"))
+
+alcohol151_summary <- test_data %>%
+  group_by(ALQ151_group) %>%
+  summarise(avg_pred_prob = mean(pred_prob, na.rm = TRUE), count = n())
+
+print(alcohol151_summary)
+```
 
 
+```{r}
+# Smoking (SMQ020: ever smoked at least 100 cigarettes)
+smoking_summary <- test_data %>%
+  group_by(SMQ020) %>%
+  summarise(avg_pred_prob = mean(pred_prob, na.rm = TRUE), count = n())
 
+print(smoking_summary)
+```
 
+```{r}
+# Diet/Nutrition Example (DBQ700: how healthy is your diet)
+diet_summary <- test_data %>%
+  group_by(DBQ700) %>%
+  summarise(avg_pred_prob = mean(pred_prob, na.rm = TRUE), count = n())
 
+print(diet_summary)
+```
 
 
